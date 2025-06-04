@@ -1,0 +1,157 @@
+datasource db {
+  provider = "sqlite"  // Change this from "postgresql" to "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  password      String?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Business details
+  businessName  String?
+  businessGST   String?
+  businessAddress String?
+  businessPhone String?
+  businessEmail String?
+  
+  // Relations
+  accounts      Account[]
+  sessions      Session[]
+  invoices      Invoice[]
+  customers     Customer[]
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?
+  access_token       String?
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  gstNumber String?
+  address   String
+  phone     String?
+  email     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    String
+  
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoices  Invoice[]
+}
+
+enum PaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+  FAILED
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  invoiceId     String
+  amount        Float          // Changed from Decimal to Float for SQLite
+  paymentDate   DateTime?
+  status        PaymentStatus @default(PENDING)
+  transactionId String?
+  paymentMethod String        @default("UPI")
+  upiId         String?
+  qrCodeUrl     String?
+  paymentLink   String?
+  reminderSent  Boolean       @default(false)
+  reminderDate  DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  // Relations
+  invoice       Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model Invoice {
+  id                 String        @id @default(cuid())
+  invoiceNumber      String
+  invoiceDate        DateTime
+  dueDate            DateTime?
+  status             String        // Draft, Generated
+  subtotal           Float          // Changed from Decimal to Float for SQLite
+  cgst               Float          // Changed from Decimal to Float for SQLite
+  sgst               Float          // Changed from Decimal to Float for SQLite
+  igst               Float          // Changed from Decimal to Float for SQLite
+  total              Float          // Changed from Decimal to Float for SQLite
+  isSameState        Boolean       @default(true)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  userId             String
+  customerId         String
+  
+  // New fields
+  notes              String?
+  termsAndConditions String?
+  paymentInstructions String?
+  currency           String        @default("INR")
+  discount           Float          @default(0) // Changed from Decimal to Float for SQLite
+  discountType       String        @default("fixed") // fixed or percentage
+  shippingCharges    Float          @default(0) // Changed from Decimal to Float for SQLite
+  
+  // Relations
+  user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customer           Customer      @relation(fields: [customerId], references: [id])
+  items              InvoiceItem[]
+  paymentStatus      PaymentStatus @default(PENDING)
+  payments           Payment[]
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  description String
+  quantity    Int
+  rate        Float    // Changed from Decimal to Float for SQLite
+  gstRate     Int     // 0, 5, 12, 18, 28
+  amount      Float    // Changed from Decimal to Float for SQLite
+  invoiceId   String
+  
+  // Relations
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
